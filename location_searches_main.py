@@ -12,7 +12,6 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
-from semantic_kernel.contents import ChatHistory
 
 # Import the agent functionality from the separate modules
 from deep_research_plugin import DeepResearchPlugin, create_deep_research_agent
@@ -159,7 +158,10 @@ async def process_location_risk_assessment(location_input: str):
         print("-" * 50)
         
         risk_plugin = create_risk_assessment_plugin()
-        risk_assessment = await risk_plugin.assess_risks(f"Location: {location_input}\n\nResearch Data:\n{research_result}")
+        risk_assessment = await risk_plugin.assess_risks(
+            research_data=f"Location: {location_input}\n\nResearch Data:\n{research_result}",
+            location=location_input
+        )
         
         print("✅ Risk Assessment Complete!")
         print(f"⚠️ Risk Analysis:\n{risk_assessment}")

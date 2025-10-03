@@ -141,6 +141,7 @@ python3 location_searches_main.py
 ├── location_searches_main.py       # Main application with risk assessment
 ├── deep_research_plugin.py         # Deep Research Plugin with ChatCompletionAgent
 ├── risk_agent.py                   # Risk Assessment Plugin
+├── bing_search_agent.py            # Bing Search Plugin (optional)
 ├── researches/                     # Auto-generated analysis reports
 │   └── *.md                        # Saved analysis files
 ├── test_deep_research.py           # Comprehensive test suite
@@ -163,7 +164,7 @@ The application uses a systematic two-stage approach:
 1. **Risk Identification**: Analyzes potential risks across 6 key categories
 2. **Evidence Evaluation**: Reviews research data for risk indicators
 3. **Impact Assessment**: Evaluates likelihood and severity of identified risks
-
+4. **Recommendations**: Provides actionable mitigation strategies
 
 ### Research Aspects Covered
 
@@ -187,18 +188,20 @@ The application uses a systematic two-stage approach:
 5. **🏛️ Regulatory & Legal** - Compliance, legal requirements, policy changes
 6. **🚀 Operational & Business** - Operational disruptions, business continuity
 
+## Architecture Improvements
+
+### From Search-Based to Risk Assessment System
+
+**Features:**
+- Specialized location risk assessment system
+- Uses modern ChatCompletionAgent
+- Direct Azure OpenAI integration
+- Two-stage comprehensive analysis (Research + Risk Assessment)
+- Automatic file saving and report generation
+- Modular Semantic Kernel plugins
+- Future-proof architecture
+
 ## Testing
-
-Test the individual components:
-
-```bash
-# Test Deep Research Plugin
-python3 test_deep_research.py
-
-# Test the complete application
-source .venv/bin/activate
-echo "Test Location" | python3 location_searches_main.py
-```
 
 The test suite includes:
 - Direct plugin function testing
@@ -206,3 +209,26 @@ The test suite includes:
 - Individual function validation
 - Error handling verification
 
+
+## Performance Considerations
+
+- **Deep research** typically takes 2-5 minutes depending on complexity
+- **Risk assessment** adds another 1-2 minutes for comprehensive analysis
+- **File saving** is instantaneous with proper error handling
+- **Total analysis time** is typically 3-7 minutes for complete assessment
+- Plugin architecture allows for efficient resource management and parallel processing
+
+## Future Enhancements
+
+Potential improvements for the Location Risk Assessment System:
+
+- **Integration with real-time data sources** (weather APIs, building databases)
+- **Advanced risk modeling** with quantitative risk calculations
+- **Export capabilities** (PDF, Word, Excel formats)
+- **Risk result caching** and historical analysis tracking
+- **Collaborative assessment** features for team-based reviews
+- **Integration with facility management systems**
+- **Support for additional LLM providers** and specialized risk models
+- **Enhanced plugin composition** for domain-specific risk assessments
+- **Automated monitoring** and alert systems for high-risk locations
+- **Integration with insurance and compliance frameworks**

@@ -2,20 +2,18 @@
 Deep Research Plugin Module
 
 This module contains the DeepResearchPlugin for performing comprehensive
-multi-level research using Azure OpenAI services in a Semantic Kernel framework.
+multi-level research using OpenAI API with function calling.
 """
 
 import os
 import asyncio
 import logging
 import datetime
-from typing import List, Optional, Dict, Any, Annotated
+import json
+from typing import List, Optional, Dict, Any
 
 from azure.identity import AzureCliCredential
-from semantic_kernel.functions import kernel_function
-from semantic_kernel.agents import ChatCompletionAgent
-from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
-from semantic_kernel.contents import ChatHistory
+import openai
 
 from dotenv import load_dotenv
 
@@ -27,18 +25,22 @@ load_dotenv()
 
 
 class DeepResearchPlugin:
-    """A Semantic Kernel Plugin for performing deep, multi-level research on topics"""
+    """An OpenAI-based plugin for performing deep, multi-level research on topics"""
     
     def __init__(self):
         """Initialize the Deep Research Plugin"""
         self.logger = logging.getLogger(__name__)
         self.logger.debug("Deep Research Plugin initialized")
-
-    @kernel_function(description="Performs comprehensive deep research on a topic with multiple research iterations")
-    async def deep_research(self,
-                           query: Annotated[str, "The research topic or question to investigate thoroughly"],
-                           breadth: Annotated[int, "Number of research aspects to explore (default: 3)"] = 3,
-                           depth: Annotated[int, "Number of research iterations to perform (default: 2)"] = 2) -> str:
+        
+        # Initialize OpenAI client
+        self._credential = AzureCliCredential()
+        self.client = openai.AsyncAzureOpenAI(
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            azure_ad_token_provider=lambda: self._credential.get_token("https://cognitiveservices.azure.com/.default").token,
+            api_version="2024-02-01"
+        )
+        
+    async def deep_research(self, query: str, breadth: int = 3, depth: int = 2) -> str:
         """
         Perform comprehensive deep research on a given topic
         
@@ -74,9 +76,7 @@ class DeepResearchPlugin:
             logger.error(f"Error in deep research: {e}")
             return f"❌ Deep research failed: {str(e)}"
 
-    @kernel_function(description="Performs quick research on a topic with preset parameters for faster results")
-    async def quick_research(self,
-                            query: Annotated[str, "The research topic or question to investigate"]) -> str:
+    async def quick_research(self, query: str) -> str:
         """
         Perform quick research with preset parameters for faster results
         
@@ -92,10 +92,8 @@ class DeepResearchPlugin:
         """Generate an AI-powered research outline with multiple aspects to explore"""
         
         try:
-            # Create outline generation agent using proper SK 1.37.0 pattern
-            outline_agent = ChatCompletionAgent(
-                name="OutlineGenerator",
-                instructions=f"""You are a research planning specialist. Generate {breadth} specific research aspects for comprehensive analysis of: {query}
+            # Create system message for outline generation
+            system_message = f"""You are a research planning specialist. Generate {breadth} specific research aspects for comprehensive analysis of: {query}
 
 Create focused research areas that are:
 - Specific and actionable
@@ -109,28 +107,21 @@ Example format:
 2. [Another specific research aspect]
 etc.
 
-Focus on practical, investigatable aspects that would provide valuable insights.""",
-                service=AzureChatCompletion(
-                    deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-                    endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-                    api_version="2024-02-01",
-                    credential=AzureCliCredential(),
-                )
+Focus on practical, investigatable aspects that would provide valuable insights."""
+            
+            # Make OpenAI API call
+            response = await self.client.chat.completions.create(
+                model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": f"Generate {breadth} specific research aspects for comprehensive analysis of: {query}"}
+                ],
+                temperature=0.7,
+                max_tokens=1000
             )
             
-            # Create chat history and request the outline
-            chat_history = ChatHistory()
-            chat_history.add_user_message(f"Generate {breadth} specific research aspects for comprehensive analysis of: {query}")
-            
-            # Get the AI response
-            responses = []
-            async for message in outline_agent.invoke(chat_history):
-                responses.append(message)
-            
-            # Extract and parse the response
-            outline_content = ""
-            for message in responses:
-                outline_content += str(message.content) + "\n"
+            # Extract the response content
+            outline_content = response.choices[0].message.content
             
             # Parse the numbered list into individual aspects
             aspects = []
@@ -202,10 +193,8 @@ Focus on practical, investigatable aspects that would provide valuable insights.
         """Perform actual AI-powered research for a specific aspect"""
         
         try:
-            # Create research agent using proper SK 1.37.0 pattern
-            research_agent = ChatCompletionAgent(
-                name="AspectResearcher",
-                instructions=f"""You are a specialized research analyst conducting iteration {iteration} research on: {aspect}
+            # Create system message for research
+            system_message = f"""You are a specialized research analyst conducting iteration {iteration} research on: {aspect}
 
 Provide a detailed, factual analysis focusing on:
 - Current state and recent developments
@@ -217,28 +206,21 @@ Provide a detailed, factual analysis focusing on:
 
 Format your response as clear, actionable bullet points with specific details.
 Be thorough, factual, and provide valuable insights that go beyond general statements.
-Focus on concrete information and actionable intelligence.""",
-                service=AzureChatCompletion(
-                    deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-                    endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-                    api_version="2024-02-01",
-                    credential=AzureCliCredential(),
-                )
+Focus on concrete information and actionable intelligence."""
+            
+            # Make OpenAI API call
+            response = await self.client.chat.completions.create(
+                model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": f"Research and analyze: {aspect}. Provide detailed findings for iteration {iteration}."}
+                ],
+                temperature=0.7,
+                max_tokens=1500
             )
             
-            # Create chat history and add the research request
-            chat_history = ChatHistory()
-            chat_history.add_user_message(f"Research and analyze: {aspect}. Provide detailed findings for iteration {iteration}.")
-            
-            # Get the AI response
-            responses = []
-            async for message in research_agent.invoke(chat_history):
-                responses.append(message)
-            
             # Extract the content from the response
-            research_content = ""
-            for message in responses:
-                research_content += str(message.content) + "\n"
+            research_content = response.choices[0].message.content
             
             # Format the findings as a list
             findings = [
@@ -308,37 +290,179 @@ This comprehensive research report presents findings from a multi-dimensional an
         return report
 
 
-# Helper function to create deep research agent using SK 1.37.0 pattern
-def create_deep_research_agent() -> ChatCompletionAgent:
-    """
-    Create and configure the deep research agent using proper SK 1.37.0 pattern
-    
-    Returns:
-        ChatCompletionAgent: Configured deep research agent
-    """
-    
-    # Create the chat completion agent
-    deep_research_agent = ChatCompletionAgent(
-        name="DeepResearchAgent",
-        instructions="""You are an expert deep research agent capable of performing comprehensive, multi-level research on any topic.
+# Function definitions for OpenAI function calling
+def get_research_functions():
+    """Get function definitions for OpenAI function calling"""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "deep_research",
+                "description": "Performs comprehensive deep research on a topic with multiple research iterations",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The research topic or question to investigate thoroughly"
+                        },
+                        "breadth": {
+                            "type": "integer",
+                            "description": "Number of research aspects to explore (default: 3)",
+                            "minimum": 1,
+                            "maximum": 10,
+                            "default": 3
+                        },
+                        "depth": {
+                            "type": "integer", 
+                            "description": "Number of research iterations to perform (default: 2)",
+                            "minimum": 1,
+                            "maximum": 5,
+                            "default": 2
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "quick_research",
+                "description": "Performs quick research on a topic with preset parameters for faster results",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The research topic or question to investigate"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
+        }
+    ]
 
-When a user asks you to research something, provide detailed, factual analysis focusing on:
-- Current state and recent developments
-- Key facts, statistics, and data points
-- Important trends and patterns
-- Challenges and opportunities
-- Expert insights and analysis
-- Future implications
+
+# Helper class for creating deep research agent using OpenAI
+class DeepResearchAgent:
+    """
+    An OpenAI-based research agent with function calling capabilities
+    """
+    
+    def __init__(self):
+        """Initialize the deep research agent with OpenAI client"""
+        self._credential = AzureCliCredential()
+        self.client = openai.AsyncAzureOpenAI(
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            azure_ad_token_provider=lambda: self._credential.get_token("https://cognitiveservices.azure.com/.default").token,
+            api_version="2024-02-01"
+        )
+        self.plugin = DeepResearchPlugin()
+        self.system_message = """You are an expert deep research agent capable of performing comprehensive, multi-level research on any topic.
+
+You have access to research functions that can help you provide detailed analysis. When a user asks you to research something, you should:
+
+1. Use the appropriate research function (deep_research for comprehensive analysis, quick_research for faster results)
+2. Provide detailed, factual analysis focusing on:
+   - Current state and recent developments
+   - Key facts, statistics, and data points
+   - Important trends and patterns
+   - Challenges and opportunities
+   - Expert insights and analysis
+   - Future implications
 
 Always provide well-structured, detailed reports with clear insights.
 Be thorough, factual, and provide valuable analysis that goes beyond surface-level information.
-Your research should be comprehensive, well-organized, and actionable.""",
-        service=AzureChatCompletion(
-            deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-            endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_version="2024-02-01",
-            credential=AzureCliCredential(),
-        )
-    )
+Your research should be comprehensive, well-organized, and actionable."""
 
-    return deep_research_agent
+    async def chat(self, message: str) -> str:
+        """
+        Chat with the agent, which can call research functions as needed
+        
+        Args:
+            message: The user's message or research request
+            
+        Returns:
+            Agent response as a string
+        """
+        try:
+            messages = [
+                {"role": "system", "content": self.system_message},
+                {"role": "user", "content": message}
+            ]
+            
+            # First call to potentially trigger function calling
+            response = await self.client.chat.completions.create(
+                model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+                messages=messages,
+                tools=get_research_functions(),
+                tool_choice="auto",
+                temperature=0.7,
+                max_tokens=2000
+            )
+            
+            response_message = response.choices[0].message
+            
+            # Check if the model wants to call a function
+            if response_message.tool_calls:
+                # Add the assistant's response to messages
+                messages.append({
+                    "role": "assistant", 
+                    "content": response_message.content,
+                    "tool_calls": response_message.tool_calls
+                })
+                
+                # Execute each function call
+                for tool_call in response_message.tool_calls:
+                    function_name = tool_call.function.name
+                    function_args = json.loads(tool_call.function.arguments)
+                    
+                    # Call the appropriate function
+                    if function_name == "deep_research":
+                        function_response = await self.plugin.deep_research(
+                            query=function_args.get("query"),
+                            breadth=function_args.get("breadth", 3),
+                            depth=function_args.get("depth", 2)
+                        )
+                    elif function_name == "quick_research":
+                        function_response = await self.plugin.quick_research(
+                            query=function_args.get("query")
+                        )
+                    else:
+                        function_response = f"Unknown function: {function_name}"
+                    
+                    # Add function response to messages
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": function_response
+                    })
+                
+                # Get final response from the model
+                final_response = await self.client.chat.completions.create(
+                    model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=2000
+                )
+                
+                return final_response.choices[0].message.content
+            else:
+                # No function call needed, return the direct response
+                return response_message.content
+            
+        except Exception as e:
+            logger.error(f"Error in chat: {e}")
+            return f"❌ Chat failed: {str(e)}"
+
+
+def create_deep_research_agent() -> DeepResearchAgent:
+    """
+    Create and configure the deep research agent using OpenAI
+    
+    Returns:
+        DeepResearchAgent: Configured deep research agent
+    """
+    return DeepResearchAgent()

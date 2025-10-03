@@ -1,14 +1,11 @@
 # Core dependencies for Search and Deep Research Agents
 python-dotenv>=1.0.0
 azure-identity>=1.15.0
-semantic-kernel>=1.37.0
 aiohttp>=3.9.0
 
-# Additional Azure dependencies
-azure-ai-projects>=1.0.0
-azure-core>=1.29.0
+# OpenAI API for chat completion and function calling
 openai>=1.35.0
 
-# Optional dependencies for enhanced functionality
-asyncio
-logging
+# Additional Azure dependencies (optional)
+azure-ai-projects>=1.0.0
+azure-core>=1.29.0
